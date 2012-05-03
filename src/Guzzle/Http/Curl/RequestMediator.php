@@ -64,11 +64,6 @@ class RequestMediator
      */
     public function writeResponseBody($curl, $write)
     {
-        $this->request->dispatch('curl.callback.write', array(
-            'request' => $this->request,
-            'write'   => $write
-        ));
-
         return $this->request->getResponse()->getBody()->write($write);
     }
 
@@ -87,10 +82,6 @@ class RequestMediator
 
         if ($this->request->getBody()) {
             $read = $this->request->getBody()->read($length);
-            $this->request->dispatch('curl.callback.read', array(
-                'request' => $this->request,
-                'read'    => $read
-            ));
         }
 
         return !$read ? '' : $read;

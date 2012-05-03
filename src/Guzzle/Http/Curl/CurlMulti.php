@@ -104,9 +104,7 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
             // A request is still polling (sent to request's event dispatchers)
             self::POLLING_REQUEST,
             // A request exception occurred
-            'curl_multi.exception',
-            // A curl message was received
-            'curl_multi.message'
+            'curl_multi.exception'
         );
     }
 
@@ -211,6 +209,7 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
             foreach ($scopedRequests as $i => $scopedRequest) {
                 if ($scopedRequest === $request) {
                     unset($this->requests[$scope][$i]);
+                    break;
                 }
             }
         }
@@ -348,17 +347,28 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
      */
     protected function perform()
     {
-        $active = $failedSelects = 0;
-        $pendingRequests = !$this->scope ? $this->count() : !empty($this->requests[$this->scope]);
+        $active = 0;
+        $failedSelects = 0;
+        $needsPoll = true;
+
+        // Determine if there are any requests to send
+        if ($this->scope <= 0) {
+            $pendingRequests = $this->count() > 0;
+        } else {
+            $pendingRequests = !empty($this->requests[$this->scope]);
+        }
 
         while ($pendingRequests) {
 
-            while ($mrc = curl_multi_exec($this->multiHandle, $active) == CURLM_CALL_MULTI_PERFORM);
+            do {
+                $mrc = curl_multi_exec($this->multiHandle, $active);
+            } while ($mrc == CURLM_CALL_MULTI_PERFORM);
+
+            // Check to ensure an error did not occur while executing handles
             $this->checkCurlResult($mrc);
 
             // Get messages from curl handles
             while ($done = curl_multi_info_read($this->multiHandle)) {
-                $this->dispatch('curl_multi.message', $done);
                 foreach ($this->all() as $request) {
                     $handle = $this->getRequestHandle($request);
                     if ($handle && $handle->getHandle() === $done['handle']) {
@@ -373,22 +383,34 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
             }
 
             // Notify each request as polling and handled queued responses
-            $scopedPolling = $this->scope <= 0 ? $this->all() : $this->requests[$this->scope];
+            if ($this->scope <= 0) {
+                $scopedPolling = $this->all();
+            } else {
+                $scopedPolling = $this->requests[$this->scope];
+            }
+
+            // Determine if there are more requests to send
             $pendingRequests = !empty($scopedPolling);
-            foreach ($scopedPolling as $request) {
-                $request->dispatch(self::POLLING_REQUEST, array(
-                    'curl_multi' => $this,
-                    'request'    => $request
-                ));
+
+            if (!$needsPoll) {
+                $needsPoll = true;
+            } else {
+                $needsPoll = false;
+                foreach ($scopedPolling as $request) {
+                    $request->dispatch(self::POLLING_REQUEST, array(
+                        'curl_multi' => $this,
+                        'request'    => $request
+                    ));
+                }
             }
 
             if ($pendingRequests) {
                 if (!$active) {
                     // Requests are not actually pending a cURL select call, so
                     // we need to delay in order to prevent eating too much CPU
-                    usleep(30000);
+                    usleep(1000);
                 } else {
-                    $select = curl_multi_select($this->multiHandle, 0.3);
+                    $select = curl_multi_select($this->multiHandle, 1);
                     // Select up to 25 times for a total of 7.5 seconds
                     if (!$select && $this->scope > 0 && ++$failedSelects > 25) {
                         // There are cases where curl is waiting on a return

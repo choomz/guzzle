@@ -101,8 +101,6 @@ class Request extends AbstractMessage implements RequestInterface
             'request.exception',
             // Received response status line
             'request.receive.status_line',
-            // Received response header
-            'request.receive.header',
             // Manually set a response
             'request.set_response'
         );
@@ -613,10 +611,6 @@ class Request extends AbstractMessage implements RequestInterface
         } else if ($length > 2) {
             list($header, $value) = array_map('trim', explode(':', trim($data), 2));
             $this->response->addHeader($header, $value);
-            $this->dispatch('request.receive.header', array(
-                'header' => $header,
-                'value'  => $value
-            ), true);
         }
 
         return $length;

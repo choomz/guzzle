@@ -267,25 +267,34 @@ class Inspector
                 $arg = new Collection($arg);
             }
 
+            $configValue = $config->get($name);
+
             // Set the default value if it is not set
-            if ($arg->get('static') || ($arg->get('default') && !$config->get($name))) {
-                $check = $arg->get('static', $arg->get('default'));
+            $staticValue = $arg->get('static');
+            $defaultValue = $arg->get('default');
+
+            if ($staticValue || ($defaultValue && !$configValue)) {
+                $check = $staticValue ?: $defaultValue;
                 if ($check === 'true') {
                     $config->set($name, true);
+                    $configValue = true;
                 } else if ($check == 'false') {
                     $config->set($name, false);
+                    $configValue = false;
                 } else {
                     $config->set($name, $check);
+                    $configValue = $check;
                 }
             }
 
             // Inject configuration information into the config value
-            if (is_scalar($config->get($name)) && strpos($config->get($name), '{') !== false) {
-                $config->set($name, Guzzle::inject($config->get($name), $config));
+            if (is_scalar($configValue) && strpos($configValue, '{') !== false) {
+                $config->set($name, Guzzle::inject($configValue, $config));
+                $configValue = $config->get($name);
             }
 
             // Ensure that required arguments are set
-            if ($arg->get('required') && !$config->get($name)) {
+            if ($arg->get('required') && !$configValue) {
                 $errors[] = 'Requires that the ' . $name . ' argument be supplied.' . ($arg->get('doc') ? '  (' . $arg->get('doc') . ').' : '');
                 continue;
             }
@@ -296,9 +305,10 @@ class Inspector
             }
 
             // Ensure that the correct data type is being used
-            if ($arg->get('type')) {
-                $constraint = $this->getConstraint($arg->get('type'));
-                $result = $this->getValidator()->validateValue($config->get($name), $constraint);
+            $argType = $arg->get('type');
+            if ($argType) {
+                $constraint = $this->getConstraint($argType);
+                $result = $this->getValidator()->validateValue($configValue, $constraint);
                 if (!empty($result)) {
                     $errors = array_merge($errors, array_map(function($message) {
                         return $message->getMessage();
@@ -307,17 +317,22 @@ class Inspector
             }
 
             // Run the value through attached filters
-            if ($arg->get('filters')) {
-                foreach (explode(',', $arg->get('filters')) as $filter) {
+            $argFilters = $arg->get('filters');
+            if ($argFilters) {
+                foreach (explode(',', $argFilters) as $filter) {
                     $config->set($name, call_user_func(trim($filter), $config->get($name)));
                 }
+                $configValue = $config->get($name);
             }
 
             // Check the length values
-            if ($arg->get('min_length') && strlen($config->get($name)) < $arg->get('min_length')) {
+            $argMinLength = $arg->get('min_length');
+            if ($argMinLength && strlen($configValue) < $argMinLength) {
                 $errors[] = 'Requires that the ' . $name . ' argument be >= ' . $arg->get('min_length') . ' characters.';
             }
-            if ($arg->get('max_length') && strlen($config->get($name)) > $arg->get('max_length')) {
+
+            $argMaxLength = $arg->get('max_length');
+            if ($argMaxLength && strlen($configValue) > $argMaxLength) {
                 $errors[] = 'Requires that the ' . $name . ' argument be <= ' . $arg->get('max_length') . ' characters.';
             }
         }

@@ -54,13 +54,18 @@ class CurlHandle
             CURLOPT_ENCODING => '', // Supports all encodings
             CURLOPT_PORT => $request->getPort(),
             CURLOPT_HTTP_VERSION => $protocolVersion,
-            CURLOPT_NOPROGRESS => false,
-            CURLOPT_STDERR => fopen('php://temp', 'r+'),
+            CURLOPT_NOPROGRESS => true,
+            CURLOPT_STDERR => fopen('php://memory', 'r+'),
             CURLOPT_VERBOSE => true,
             CURLOPT_HTTPHEADER => array(),
-            CURLOPT_HEADERFUNCTION => array($mediator, 'receiveResponseHeader'),
-            CURLOPT_PROGRESSFUNCTION => array($mediator, 'progress')
+            CURLOPT_HEADERFUNCTION => array($mediator, 'receiveResponseHeader')
         );
+
+        // Enable the progress function if the 'progress' param was set
+        if ($request->getCurlOptions()->get('progress')) {
+            $curlOptions[CURLOPT_PROGRESS_FUNCTION] = array($mediator, 'progress');
+            $curlOptions[CURLOPT_NOPROGRESS] = false;
+        }
 
         // HEAD requests need no response body, everything else might
         if ($request->getMethod() != 'HEAD') {
@@ -129,16 +134,19 @@ class CurlHandle
 
         // Check if any headers or cURL options are blacklisted
         $client = $request->getClient();
-        if ($client && $client->getConfig('curl.blacklist')) {
-            foreach ($client->getConfig('curl.blacklist') as $value) {
-                if (strpos($value, 'header.') === 0) {
-                    $blacklistHeader = substr($value, 7);
-                    // Remove headers that may have previously been set
-                    // but are supposed to be blacklisted
-                    unset($headers[$blacklistHeader]);
-                    $headers[$blacklistHeader] = '';
-                } else {
-                    unset($curlOptions[$value]);
+        if ($client) {
+            $blacklist = $client->getConfig('curl.blacklist');
+            if ($blacklist) {
+                foreach ($blacklist as $value) {
+                    if (strpos($value, 'header.') === 0) {
+                        $blacklistHeader = substr($value, 7);
+                        // Remove headers that may have previously been set
+                        // but are supposed to be blacklisted
+                        unset($headers[$blacklistHeader]);
+                        $headers[$blacklistHeader] = '';
+                    } else {
+                        unset($curlOptions[$value]);
+                    }
                 }
             }
         }
@@ -207,7 +215,7 @@ class CurlHandle
      */
     public function isAvailable()
     {
-        return is_resource($this->handle) && false != curl_getinfo($this->handle, CURLINFO_EFFECTIVE_URL);
+        return is_resource($this->handle);
     }
 
     /**
@@ -311,7 +319,7 @@ class CurlHandle
      */
     public function getHandle()
     {
-        return $this->handle && $this->isAvailable() ? $this->handle : null;
+        return $this->isAvailable() ? $this->handle : null;
     }
 
     /**
