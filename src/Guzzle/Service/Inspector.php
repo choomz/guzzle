@@ -54,6 +54,11 @@ class Inspector
     protected $validator;
 
     /**
+     * @var bool
+     */
+    protected $typeValidation = true;
+
+    /**
      * Constructor to create a new Inspector
      */
     public function __construct()
@@ -99,6 +104,19 @@ class Inspector
         // @codeCoverageIgnoreEnd
 
         return self::$instance;
+    }
+
+    /**
+     * Enable/disable type validation of configuration settings.  This is
+     * useful for very high performance requirements.
+     *
+     * @param bool $typeValidation Set to TRUE or FALSE
+     *
+     * @return Inspector
+     */
+    public function setTypeValidation($typeValidation)
+    {
+        $this->typeValidation = $typeValidation;
     }
 
     /**
@@ -306,7 +324,7 @@ class Inspector
 
             // Ensure that the correct data type is being used
             $argType = $arg->get('type');
-            if ($argType && !$config->get('service.inspector.disable.type')) {
+            if ($this->typeValidation && $argType) {
                 $constraint = $this->getConstraint($argType);
                 $result = $this->getValidator()->validateValue($configValue, $constraint);
                 if (!empty($result)) {

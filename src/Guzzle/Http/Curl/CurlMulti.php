@@ -349,6 +349,13 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
      */
     protected function perform()
     {
+        // @codeCoverageIgnoreStart
+        // Weird things can happen when making HTTP requests in __destruct methods
+        if (!$this->multiHandle) {
+            return;
+        }
+        // @codeCoverageIgnoreEnd
+
         // If there are no requests to send, then exit from the function
         if ($this->scope <= 0) {
             if ($this->count() == 0) {

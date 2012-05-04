@@ -721,4 +721,13 @@ class CurlHandleTest extends \Guzzle\Tests\GuzzleTestCase
         $received = $this->getServer()->getReceivedRequests(true);
         $this->assertEquals(2, count($received));
     }
+
+    public function testAllowsWireTransferInfoToBeDisabled()
+    {
+        $request = RequestFactory::getInstance()->create('PUT', $this->getServer()->getUrl());
+        $request->getCurlOptions()->set('disable_wire', true);
+        $handle = CurlHandle::factory($request);
+        $this->assertNull($handle->getOptions()->get(CURLOPT_STDERR));
+        $this->assertNull($handle->getOptions()->get(CURLOPT_VERBOSE));
+    }
 }
