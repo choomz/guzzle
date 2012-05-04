@@ -73,10 +73,10 @@ class CurlHandle
         }
 
         // Enable curl debug information if the 'debug' param was set
-        //if ($requestCurlOptions->get('debug')) {
+        if (!$requestCurlOptions->get('disable_wire')) {
             $curlOptions[CURLOPT_STDERR] = fopen('php://temp', 'r+');
             $curlOptions[CURLOPT_VERBOSE] = true;
-        //}
+        }
 
         // HEAD requests need no response body, everything else might
         if ($request->getMethod() != 'HEAD') {

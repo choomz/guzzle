@@ -50,6 +50,11 @@ class ExponentialBackoffPlugin implements EventSubscriberInterface
         CURLE_RECV_ERROR);
 
     /**
+     * @var array Hash cache of the default failure codes
+     */
+    protected static $defaultFailureCodesHash;
+
+    /**
      * Construct a new exponential backoff plugin
      *
      * @param int $maxRetries (optional) The maximum number of time to retry a request
@@ -74,6 +79,10 @@ class ExponentialBackoffPlugin implements EventSubscriberInterface
             $this->delayClosure = array($this, 'calculateWait');
         } else {
             $this->delayClosure = $delayFunction;
+        }
+
+        if (!self::$defaultFailureCodesHash) {
+            self::$defaultFailureCodesHash = array_fill_keys(self::$defaultFailureCodes, 1);
         }
     }
 
@@ -152,7 +161,7 @@ class ExponentialBackoffPlugin implements EventSubscriberInterface
 
         // Use a hash of codes so that it is faster to lookup errors
         if (!$this->callableFailureCodes) {
-            $this->failureCodes = array_fill_keys(array_flip($this->failureCodes), 1);
+            $this->failureCodes = array_fill_keys($this->failureCodes, 1);
         }
 
         return $this;
@@ -188,7 +197,7 @@ class ExponentialBackoffPlugin implements EventSubscriberInterface
             $retry = call_user_func($this->failureCodes, $request, $response, $exception);
             // If null is returned, then use the default check
             if ($retry === null) {
-                $failureCodes = self::getDefaultFailureCodes();
+                $failureCodes = self::$defaultFailureCodesHash;
             }
         }
 
@@ -216,8 +225,7 @@ class ExponentialBackoffPlugin implements EventSubscriberInterface
     public function onRequestPoll(Event $event)
     {
         $request = $event['request'];
-        $params = $request->getParams();
-        $delay = $params->get(self::DELAY_PARAM);
+        $delay = $request->getParams()->get(self::DELAY_PARAM);
 
         // If the duration of the delay has passed, retry the request using the pool
         if (null !== $delay && microtime(true) >= $delay) {
@@ -226,7 +234,7 @@ class ExponentialBackoffPlugin implements EventSubscriberInterface
             // the easy handle.
             $multi = $event['curl_multi'];
             $multi->remove($request);
-            $params->remove(self::DELAY_PARAM);
+            $request->getParams()->remove(self::DELAY_PARAM);
             // Rewind the request body if possible
             if ($request instanceof EntityEnclosingRequestInterface) {
                 $request->getBody()->seek(0);
@@ -249,7 +257,8 @@ class ExponentialBackoffPlugin implements EventSubscriberInterface
         // If this request has been retried too many times, then throw an exception
         if ($retries <= $this->maxRetries) {
             // Calculate how long to wait until the request should be retried
-            $delay = microtime(true) + call_user_func($this->delayClosure, $retries);
+            $delay = call_user_func($this->delayClosure, $retries);
+            $delayTime = microtime(true) + $delay;
             // Send the request again
             $request->setState(RequestInterface::STATE_TRANSFER);
             $params->set(self::DELAY_PARAM, $delay);
