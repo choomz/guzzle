@@ -165,8 +165,10 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
     public function all()
     {
         $requests = array();
-        foreach ($this->requests as $scopedRequests) {
-            $requests = array_merge($requests, $scopedRequests);
+        foreach ($this->requests as &$scopedRequests) {
+            foreach ($scopedRequests as $request) {
+                $requests[] = $request;
+            }
         }
 
         return $requests;
@@ -347,18 +349,16 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
      */
     protected function perform()
     {
-        $active = 0;
-        $failedSelects = 0;
-        $needsPoll = true;
-
-        // Determine if there are any requests to send
-        if ($this->scope <= 0) {
-            $pendingRequests = $this->count() > 0;
-        } else {
-            $pendingRequests = !empty($this->requests[$this->scope]);
+        // If there are no requests to send, then exit from the function
+        if ($this->scope <= 0 && $this->count() == 0) {
+            return;
+        } else if (empty($this->requests[$this->scope])) {
+            return;
         }
 
-        while ($pendingRequests) {
+        $active = 0;
+
+        while (1) {
 
             do {
                 $mrc = curl_multi_exec($this->multiHandle, $active);
@@ -389,39 +389,27 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
                 $scopedPolling = $this->requests[$this->scope];
             }
 
-            // Determine if there are more requests to send
-            $pendingRequests = !empty($scopedPolling);
-
-            if (!$needsPoll) {
-                $needsPoll = true;
-            } else {
-                $needsPoll = false;
-                foreach ($scopedPolling as $request) {
-                    $request->dispatch(self::POLLING_REQUEST, array(
-                        'curl_multi' => $this,
-                        'request'    => $request
-                    ));
-                }
+            // Exit the function if there are no more requests to send
+            if (empty($scopedPolling)) {
+                break;
             }
 
-            if ($pendingRequests) {
-                if (!$active) {
-                    // Requests are not actually pending a cURL select call, so
-                    // we need to delay in order to prevent eating too much CPU
-                    usleep(1000);
-                } else {
-                    $select = curl_multi_select($this->multiHandle, 1);
-                    // Select up to 25 times for a total of 7.5 seconds
-                    if (!$select && $this->scope > 0 && ++$failedSelects > 25) {
-                        // There are cases where curl is waiting on a return
-                        // value from a parent scope in order to remove a curl
-                        // handle.  This check will defer to a parent scope for
-                        // handling the rest of the connection transfer.
-                        // @codeCoverageIgnoreStart
-                        break;
-                        // @codeCoverageIgnoreEnd
-                    }
-                }
+            // Notify all requests that requests are being polled
+            $event = array('curl_multi' => $this);
+            foreach ($scopedPolling as $request) {
+                $event['request'] = $request;
+                $request->dispatch(self::POLLING_REQUEST, $event);
+            }
+
+            if (!$active) {
+                // Requests are not actually pending a cURL select call, so
+                // we need to delay in order to prevent eating too much CPU
+                usleep(100);
+            } else {
+                // Select the curl handles for up to 1 second until there is
+                // any activity on any of the open file descriptors.
+                // See https://github.com/php/php-src/blob/master/ext/curl/multi.c#L170
+                $select = curl_multi_select($this->multiHandle, 1);
             }
         }
     }

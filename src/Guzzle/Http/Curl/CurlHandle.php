@@ -33,6 +33,14 @@ class CurlHandle
     /**
      * Factory method to create a new curl handle based on an HTTP request
      *
+     * There are some helpful options you can set to enable specific behavior:
+     *    - debug: Will parse the data sent over the wire and update the in
+     *         memory request that was sent with the actual request headers
+     *         that were sent over the wire.  Additionally, this setting
+     *         provides more information in the event of a cURL failure.
+     *    - progress: Set to true to enable progress function callbacks. Most
+     *         People don't need this, so it has been disabled by default.
+     *
      * @param RequestInterface $request Request
      *
      * @return CurlHandle
@@ -41,30 +49,32 @@ class CurlHandle
     {
         $handle = curl_init();
         $mediator = new RequestMediator($request);
-        $protocolVersion = $request->getProtocolVersion() === '1.0' ? CURL_HTTP_VERSION_1_0 : CURL_HTTP_VERSION_1_1;
+        $requestCurlOptions = $request->getCurlOptions();
 
         // Array of default cURL options.
         $curlOptions = array(
             CURLOPT_URL => $request->getUrl(),
-            CURLOPT_CUSTOMREQUEST => $request->getMethod(),
             CURLOPT_CONNECTTIMEOUT => 10, // Connect timeout in seconds
             CURLOPT_RETURNTRANSFER => false, // Streaming the return, so no need
             CURLOPT_HEADER => false, // Retrieve the received headers
             CURLOPT_USERAGENT => (string) $request->getHeader('User-Agent'),
             CURLOPT_ENCODING => '', // Supports all encodings
             CURLOPT_PORT => $request->getPort(),
-            CURLOPT_HTTP_VERSION => $protocolVersion,
-            CURLOPT_NOPROGRESS => true,
-            CURLOPT_STDERR => fopen('php://memory', 'r+'),
-            CURLOPT_VERBOSE => true,
+            CURLOPT_HTTP_VERSION => $request->getProtocolVersion() === '1.0' ? CURL_HTTP_VERSION_1_0 : CURL_HTTP_VERSION_1_1,
             CURLOPT_HTTPHEADER => array(),
             CURLOPT_HEADERFUNCTION => array($mediator, 'receiveResponseHeader')
         );
 
         // Enable the progress function if the 'progress' param was set
-        if ($request->getCurlOptions()->get('progress')) {
+        if ($requestCurlOptions->get('progress')) {
             $curlOptions[CURLOPT_PROGRESS_FUNCTION] = array($mediator, 'progress');
             $curlOptions[CURLOPT_NOPROGRESS] = false;
+        }
+
+        // Enable curl debug information if the 'debug' param was set
+        if ($requestCurlOptions->get('debug')) {
+            $curlOptions[CURLOPT_STDERR] = fopen('php://memory', 'r+');
+            $curlOptions[CURLOPT_VERBOSE] = true;
         }
 
         // HEAD requests need no response body, everything else might
@@ -96,12 +106,12 @@ class CurlHandle
                 break;
             case 'PUT':
             case 'PATCH':
+                $curlOptions[CURLOPT_CUSTOMREQUEST] = $request->getMethod();
                 $curlOptions[CURLOPT_UPLOAD] = true;
                 if ($request->hasHeader('Content-Length')) {
                     unset($headers['Content-Length']);
                     $curlOptions[CURLOPT_INFILESIZE] = (int) (string) $request->getHeader('Content-Length');
                 }
-
                 break;
         }
 
@@ -128,7 +138,7 @@ class CurlHandle
         }
 
         // Set custom cURL options
-        foreach ($request->getCurlOptions() as $key => $value) {
+        foreach ($requestCurlOptions as $key => $value) {
             $curlOptions[$key] = $value;
         }
 

@@ -306,7 +306,7 @@ class Inspector
 
             // Ensure that the correct data type is being used
             $argType = $arg->get('type');
-            if ($argType) {
+            if ($argType && !$config->get('service.inspector.disable.type')) {
                 $constraint = $this->getConstraint($argType);
                 $result = $this->getValidator()->validateValue($configValue, $constraint);
                 if (!empty($result)) {

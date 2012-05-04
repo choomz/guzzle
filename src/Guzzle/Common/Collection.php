@@ -19,7 +19,11 @@ class Collection implements \ArrayAccess, \IteratorAggregate, \Countable
      */
     public function __construct(array $data = null)
     {
-        $this->data = $data ?: array();
+        if (!$data) {
+            $this->data = array();
+        } else {
+            $this->data = $data;
+        }
     }
 
     /**

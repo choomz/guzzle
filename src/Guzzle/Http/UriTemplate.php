@@ -12,8 +12,25 @@ class UriTemplate
     private $template;
     private $variables;
     private $regex = '/\{{1,2}([^\}]+)\}{1,2}/';
+
+    /**
+     * @var array Operators
+     */
     private static $operators = array('+', '#', '.', '/', ';', '?', '&');
+
+    /**
+     * @var array Hash for quick operator lookups
+     */
+    private static $operatorHash;
+
+    /**
+     * @var array Delimiters
+     */
     private static $delims = array(':', '/', '?', '#', '[', ']', '@', '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=');
+
+    /**
+     * @var array Percent encoded delimiters
+     */
     private static $delimsPct = array('%3A', '%2F', '%3F', '%23', '%5B', '%5D', '%40', '%21', '%24', '%26', '%27', '%28', '%29', '%2A', '%2B', '%2C', '%3B', '%3D');
 
     /**
@@ -22,6 +39,11 @@ class UriTemplate
     public function __construct($template = '')
     {
         $this->template = $template;
+
+        // Ensure that the operator hash is created for quick lookups
+        if (!self::$operatorHash) {
+            self::$operatorHash = array_fill_keys(self::$operators, 1);
+        }
     }
 
     /**
@@ -59,6 +81,11 @@ class UriTemplate
     {
         $this->variables = $variables;
 
+        // Check to ensure that the preg_* function is needed
+        if (false === strpos($this->template, '{')) {
+            return $this->template;
+        }
+
         return preg_replace_callback($this->regex, array($this, 'expandMatch'), $this->template);
     }
 
@@ -87,30 +114,34 @@ class UriTemplate
     {
         // Check for URI operators
         $operator = '';
-        if (in_array($expression[0], self::$operators)) {
+
+        if (isset(self::$operatorHash[$expression[0]])) {
             $operator = $expression[0];
             $expression = substr($expression, 1);
         }
 
+        $values = explode(',', $expression);
+        foreach ($values as &$value) {
+            $value = trim($value);
+            $varspec = array();
+            $substrPos = strpos($value, ':');
+            if ($substrPos) {
+                $varspec['value'] = substr($value, 0, $substrPos);
+                $varspec['modifier'] = ':';
+                $varspec['position'] = (int) substr($value, $substrPos + 1);
+            } else if (substr($value, -1) == '*') {
+                $varspec['modifier'] = '*';
+                $varspec['value'] = substr($value, 0, -1);
+            } else {
+                $varspec['value'] = (string) $value;
+                $varspec['modifier'] = '';
+            }
+            $value = $varspec;
+        }
+
         return array(
             'operator' => $operator,
-            'values'   => array_map(function($value) {
-                $value = trim($value);
-                $varspec = array();
-                $substrPos = strpos($value, ':');
-                if ($substrPos) {
-                    $varspec['value'] = substr($value, 0, $substrPos);
-                    $varspec['modifier'] = ':';
-                    $varspec['position'] = (int) substr($value, $substrPos + 1);
-                } else if (substr($value, -1) == '*') {
-                    $varspec['modifier'] = '*';
-                    $varspec['value'] = substr($value, 0, -1);
-                } else {
-                    $varspec['value'] = (string) $value;
-                    $varspec['modifier'] = '';
-                }
-                return $varspec;
-            }, explode(',', $expression))
+            'values'   => $values
         );
     }
 

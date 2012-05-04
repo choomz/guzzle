@@ -112,16 +112,22 @@ abstract class AbstractMessage implements MessageInterface
      */
     public function getHeaders(array $names = null)
     {
-        if (!$names) {
-            $names = array_keys($this->headers);
-        }
-
         $result = array();
-        foreach ($names as $name) {
-            if ($this->hasHeader($name)) {
-                $values = $this->getHeader($name);
-                foreach ($values->raw() as $key => $value) {
+
+        if (!$names) {
+            // Convert all of the headers into a collection
+            foreach ($this->headers as $header) {
+                foreach ($header->raw() as $key => $value) {
                     $result[$key] = $value;
+                }
+            }
+        } else {
+            // Get a collection of select headers
+            foreach ($names as $name) {
+                if ($this->hasHeader($name)) {
+                    foreach ($this->getHeader($name)->raw() as $key => $value) {
+                        $result[$key] = $value;
+                    }
                 }
             }
         }
@@ -175,8 +181,11 @@ abstract class AbstractMessage implements MessageInterface
             $changed[] = $key;
             $this->addHeader($key, $value);
         }
+
         // Notify of the changed headers
-        $this->changedHeader('set', array_map('strtolower', array_unique($changed)));
+        foreach (array_unique($changed) as $header) {
+            $this->changedHeader('set', strtolower($header));
+        }
 
         return $this;
     }
@@ -331,11 +340,11 @@ abstract class AbstractMessage implements MessageInterface
      * headers like cache-control
      *
      * @param string $action One of set or remove
-     * @param string|array $keyOrArray Header or headers that changed
+     * @param string $header Header that changed
      */
-    protected function changedHeader($action, $keyOrArray)
+    protected function changedHeader($action, $header)
     {
-        if (in_array('cache-control', (array) $keyOrArray)) {
+        if ($header == 'cache-control') {
             $this->parseCacheControlDirective();
         }
     }

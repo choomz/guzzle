@@ -582,13 +582,16 @@ class Request extends AbstractMessage implements RequestInterface
     {
         $this->state = self::STATE_TRANSFER;
         $length = strlen($data);
+        $data = str_replace(array("\r", "\n"), '', $data);
 
-        // Normalize line endings
-        $data = preg_replace("/([^\r])(\n)\b/", "$1\r\n", $data);
+        if (strpos($data, ':') !== false) {
 
-        if (preg_match('/^\HTTP\/1\.[0|1]\s\d{3}\s.+$/', $data)) {
+            list($header, $value) = explode(':', $data, 2);
+            $this->response->addHeader(trim($header), trim($value));
 
-            list($dummy, $code, $status) = explode(' ', str_replace("\r\n", '', $data), 3);
+        } else if (strlen($data) > 6) {
+
+            list($dummy, $code, $status) = explode(' ', $data, 3);
 
             // Only download the body of the response to the specified response
             // body when a successful response is received.
@@ -607,10 +610,6 @@ class Request extends AbstractMessage implements RequestInterface
                 'reason_phrase'     => $status,
                 'previous_response' => $previousResponse
             ));
-
-        } else if ($length > 2) {
-            list($header, $value) = array_map('trim', explode(':', trim($data), 2));
-            $this->response->addHeader($header, $value);
         }
 
         return $length;
@@ -801,23 +800,23 @@ class Request extends AbstractMessage implements RequestInterface
     /**
      * {@inheritdoc}
      */
-    protected function changedHeader($action, $keyOrArray)
+    protected function changedHeader($action, $header)
     {
-        $keys = (array) $keyOrArray;
-        parent::changedHeader($action, $keys);
+        parent::changedHeader($action, $header);
 
-        // Be sure to get an cookie updates and update the internal Cookie
-        if (in_array('cookie', $keys)) {
-            if ($action == 'set') {
-                $this->cookie = Cookie::factory($this->getHeader('Cookie'));
-            } else if ($this->cookie) {
-                $this->cookie->clear();
-            }
-        }
-
-        // If the Host header was changed, be sure to update the internal URL
-        if (in_array('host', $keys)) {
-            $this->setHost((string) $this->getHeader('Host'));
+        switch ($header) {
+            case 'host':
+                // If the Host header was changed, be sure to update the internal URL
+                $this->setHost((string) $this->getHeader('Host'));
+                break;
+            case 'cookie':
+                // Be sure to get an cookie updates and update the internal Cookie
+                if ($action == 'set') {
+                    $this->cookie = Cookie::factory($this->getHeader('Cookie'));
+                } else if ($this->cookie) {
+                    $this->cookie->clear();
+                }
+                break;
         }
     }
 
