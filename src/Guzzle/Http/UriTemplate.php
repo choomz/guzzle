@@ -11,7 +11,7 @@ class UriTemplate
 {
     private $template;
     private $variables;
-    private $regex = '/\{{1,2}([^\}]+)\}{1,2}/';
+    private static $regex = '/\{{1,2}([^\}]+)\}{1,2}/';
 
     /**
      * @var array Operators
@@ -86,21 +86,7 @@ class UriTemplate
             return $this->template;
         }
 
-        return preg_replace_callback($this->regex, array($this, 'expandMatch'), $this->template);
-    }
-
-    /**
-     * Set the regular expression used to identify URI templates
-     *
-     * @param string $regex Regular expression
-     *
-     * @return UriTemplate
-     */
-    public function setRegex($regex)
-    {
-        $this->regex = $regex;
-
-        return $this;
+        return preg_replace_callback(self::$regex, array($this, 'expandMatch'), $this->template);
     }
 
     /**

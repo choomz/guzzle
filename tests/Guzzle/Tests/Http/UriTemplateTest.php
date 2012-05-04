@@ -174,18 +174,6 @@ class UriTemplateTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals($data, $method->invokeArgs($template, array($exp)));
     }
 
-    /**
-     * @covers Guzzle\Http\UriTemplate::setRegex
-     */
-    public function testAllowsCustomUriTemplateRegex()
-    {
-        $template = new UriTemplate('abc_<$var>');
-        $template->setRegex('/\<\$(.+)\>/');
-        $this->assertEquals('abc_hi', $template->expand(array(
-            'var' => 'hi'
-        )));
-    }
-
     public function testAllowsTemplateChange()
     {
         $template = new UriTemplate('abc_<$var>');

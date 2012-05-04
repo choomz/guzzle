@@ -356,16 +356,9 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
             return;
         }
 
-        $active = 0;
-
         while (1) {
 
-            do {
-                $mrc = curl_multi_exec($this->multiHandle, $active);
-            } while ($mrc == CURLM_CALL_MULTI_PERFORM);
-
-            // Check to ensure an error did not occur while executing handles
-            $this->checkCurlResult($mrc);
+            $active = $this->executeHandles();
 
             // Get messages from curl handles
             while ($done = curl_multi_info_read($this->multiHandle)) {
@@ -401,17 +394,50 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
                 $request->dispatch(self::POLLING_REQUEST, $event);
             }
 
-            if (!$active) {
+            if ($active) {
+
+                // Select the curl handles until there is any activity on any
+                // of the open file descriptors.
+                // See https://github.com/php/php-src/blob/master/ext/curl/multi.c#L170
+                $active = $this->executeHandles(true, 0.25);
+
+            } else {
                 // Requests are not actually pending a cURL select call, so
                 // we need to delay in order to prevent eating too much CPU
-                usleep(100);
-            } else {
-                // Select the curl handles for up to 1 second until there is
-                // any activity on any of the open file descriptors.
-                // See https://github.com/php/php-src/blob/master/ext/curl/multi.c#L170
-                $select = curl_multi_select($this->multiHandle, 1);
+                usleep(500);
             }
         }
+    }
+
+    /**
+     * Execute and select curl handles until there is activity
+     *
+     * @param bool $select Set to TRUE to select the file descriptors
+     * @param int  $timeout Select timeout in seconds
+     *
+     * @return int Returns the number of active handles
+     */
+    private function executeHandles($select = false, $timeout = 1)
+    {
+        $active = 0;
+        $selectResult = 0;
+
+        do {
+
+            if ($select) {
+                $selectResult = curl_multi_select($this->multiHandle, $timeout);
+            }
+
+            if ($selectResult == 0) {
+                while ($mrc = curl_multi_exec($this->multiHandle, $active) == CURLM_CALL_MULTI_PERFORM);
+                // Check the return value to ensure an error did not occur
+                $this->checkCurlResult($mrc);
+            }
+
+        // Poll once if not selecing, or poll until there are no handles with activity
+        } while ($select && $active && $selectResult == 0);
+
+        return $active;
     }
 
     /**

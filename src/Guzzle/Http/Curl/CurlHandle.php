@@ -54,6 +54,7 @@ class CurlHandle
         // Array of default cURL options.
         $curlOptions = array(
             CURLOPT_URL => $request->getUrl(),
+            CURLOPT_CUSTOMREQUEST => $request->getMethod(),
             CURLOPT_CONNECTTIMEOUT => 10, // Connect timeout in seconds
             CURLOPT_RETURNTRANSFER => false, // Streaming the return, so no need
             CURLOPT_HEADER => false, // Retrieve the received headers
@@ -67,15 +68,15 @@ class CurlHandle
 
         // Enable the progress function if the 'progress' param was set
         if ($requestCurlOptions->get('progress')) {
-            $curlOptions[CURLOPT_PROGRESS_FUNCTION] = array($mediator, 'progress');
+            $curlOptions[CURLOPT_PROGRESSFUNCTION] = array($mediator, 'progress');
             $curlOptions[CURLOPT_NOPROGRESS] = false;
         }
 
         // Enable curl debug information if the 'debug' param was set
-        if ($requestCurlOptions->get('debug')) {
-            $curlOptions[CURLOPT_STDERR] = fopen('php://memory', 'r+');
+        //if ($requestCurlOptions->get('debug')) {
+            $curlOptions[CURLOPT_STDERR] = fopen('php://temp', 'r+');
             $curlOptions[CURLOPT_VERBOSE] = true;
-        }
+        //}
 
         // HEAD requests need no response body, everything else might
         if ($request->getMethod() != 'HEAD') {
@@ -106,7 +107,6 @@ class CurlHandle
                 break;
             case 'PUT':
             case 'PATCH':
-                $curlOptions[CURLOPT_CUSTOMREQUEST] = $request->getMethod();
                 $curlOptions[CURLOPT_UPLOAD] = true;
                 if ($request->hasHeader('Content-Length')) {
                     unset($headers['Content-Length']);
@@ -139,7 +139,9 @@ class CurlHandle
 
         // Set custom cURL options
         foreach ($requestCurlOptions as $key => $value) {
-            $curlOptions[$key] = $value;
+            if (is_numeric($key)) {
+                $curlOptions[$key] = $value;
+            }
         }
 
         // Check if any headers or cURL options are blacklisted

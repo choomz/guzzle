@@ -152,7 +152,7 @@ class ExponentialBackoffPlugin implements EventSubscriberInterface
 
         // Use a hash of codes so that it is faster to lookup errors
         if (!$this->callableFailureCodes) {
-            $this->failureCodes = array_fill_values(array_flip($this->failureCodes), 1);
+            $this->failureCodes = array_fill_keys(array_flip($this->failureCodes), 1);
         }
 
         return $this;
