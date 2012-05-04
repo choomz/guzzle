@@ -57,17 +57,14 @@ class Server
 
     /**
      * Destructor to safely shutdown the node.js server if it is still running
-     *
-     * @codeCoverageIgnore
      */
     public function __destruct()
     {
-        // Only shut the server down if the object knows it started the server
-        if ($this->running) {
+        // Disabled for now
+        if (false && $this->running) {
             try {
                 $this->stop();
-            } catch (\Exception $e) {
-            }
+            } catch (\Exception $e) {}
         }
     }
 
