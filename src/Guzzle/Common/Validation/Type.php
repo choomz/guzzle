@@ -11,6 +11,7 @@ class Type extends AbstractType
      * @var array Mapping of types to methods used to check the type
      */
     protected static $typeMapping = array(
+        'array'    => 'is_array',
         'long'     => 'is_long',
         'bool'     => 'is_bool',
         'boolean'  => 'is_bool',
