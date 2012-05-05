@@ -34,10 +34,10 @@ class CurlHandle
      * Factory method to create a new curl handle based on an HTTP request
      *
      * There are some helpful options you can set to enable specific behavior:
-     *    - debug: Will parse the data sent over the wire and update the in
-     *         memory request that was sent with the actual request headers
-     *         that were sent over the wire.  Additionally, this setting
-     *         provides more information in the event of a cURL failure.
+     *    - disabled_wire: This is a performance improvement that will disable
+     *         some debugging functionality with cURL.  The functionality 
+     *         it disabled allows you to see the exact HTTP request sent over 
+     *         the wire.
      *    - progress: Set to true to enable progress function callbacks. Most
      *         People don't need this, so it has been disabled by default.
      *
