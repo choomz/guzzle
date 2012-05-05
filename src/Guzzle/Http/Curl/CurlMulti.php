@@ -376,6 +376,10 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
             return;
         }
 
+
+        // Create the polling event external to the loop
+        $event = array('curl_multi' => $this);
+
         while (1) {
 
             $active = $this->executeHandles();
@@ -408,7 +412,6 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
             }
 
             // Notify all requests that requests are being polled
-            $event = array('curl_multi' => $this);
             foreach ($scopedPolling as $request) {
                 $event['request'] = $request;
                 $request->dispatch(self::POLLING_REQUEST, $event);
