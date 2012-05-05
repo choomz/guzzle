@@ -6,11 +6,6 @@ use Guzzle\Guzzle;
 use Guzzle\Common\Collection;
 use Guzzle\Common\Exception\InvalidArgumentException;
 use Guzzle\Service\Exception\ValidationException;
-use Symfony\Component\Validator\Constraint;
-use Symfony\Component\Validator\ConstraintValidatorFactory;
-use Symfony\Component\Validator\Validator;
-use Symfony\Component\Validator\Mapping\Loader\StaticMethodLoader;
-use Symfony\Component\Validator\Mapping\ClassMetadataFactory;
 
 /**
  * Inpects configuration options versus defined parameters, adding default
@@ -49,9 +44,9 @@ class Inspector
     protected $constraints = array();
 
     /**
-     * @var Validator
+     * @var Cache of instantiated constraints
      */
-    protected $validator;
+    protected $constraintCache = array();
 
     /**
      * @var bool
@@ -63,30 +58,28 @@ class Inspector
      */
     public function __construct()
     {
-        $base = 'Symfony\\Component\\Validator\\Constraints\\';
+        $base = 'Guzzle\\Common\\Validation\\';
         $this->constraints = array(
             'blank'     => array($base . 'Blank', null),
             'not_blank' => array($base . 'NotBlank', null),
-            'integer'   => array($base . 'Type', array('type' => 'numeric')),
-            'float'     => array($base . 'Type', array('type' => 'numeric')),
+            'integer'   => array($base . 'Numeric', null),
+            'float'     => array($base . 'Numeric', null),
             'string'    => array($base . 'Type', array('type' => 'string')),
-            'date'      => array($base . 'Date', null),
-            'date_time' => array($base . 'DateTime', null),
-            'time'      => array($base . 'Time', null),
-            'boolean'   => array($base . 'Choice', array('choices' => array('true', 'false', '0', '1'))),
-            'country'   => array($base . 'Country', null),
+            'file'      => array($base . 'Type', array('type' => 'file')),
+            'bool'      => array($base . 'Bool', null),
+            'boolean'   => array($base . 'Bool', null),
             'email'     => array($base . 'Email', null),
             'ip'        => array($base . 'Ip', null),
-            'language'  => array($base . 'Language', null),
-            'locale'    => array($base . 'Locale', null),
             'url'       => array($base . 'Url', null),
-            'file'      => array($base . 'File', null),
-            'image'     => array($base . 'Image', null),
-            'class'     => array($base . 'Type', null),
+            'class'     => array($base . 'InstanceOf', null),
             'type'      => array($base . 'Type', null),
+            'ctype'     => array($base . 'Ctype', null),
             'choice'    => array($base . 'Choice', null),
             'enum'      => array($base . 'Choice', null),
-            'regex'     => array($base . 'Regex', null)
+            'regex'     => array($base . 'Regex', null),
+            'date'      => array($base . 'Type', array('type' => 'string')),
+            'date_time' => array($base . 'Type', array('type' => 'string')),
+            'time'      => array($base . 'Numeric', null)
         );
     }
 
@@ -144,35 +137,6 @@ class Inspector
         }
 
         return $collection;
-    }
-
-    /**
-     * Set the validator to use with the inspector
-     *
-     * @param Validator $validator Validator to use with the Inspector
-     *
-     * @return Inspector
-     */
-    public function setValidator(Validator $validator)
-    {
-        $this->validator = $validator;
-
-        return $this;
-    }
-
-    /**
-     * Get the validator associated with the inspector.  A default validator
-     * will be created if none has already been associated
-     *
-     * @return Validator
-     */
-    public function getValidator()
-    {
-        if (!$this->validator) {
-            $this->validator = new Validator(new ClassMetadataFactory(new StaticMethodLoader()), new ConstraintValidatorFactory());
-        }
-
-        return $this->validator;
     }
 
     /**
@@ -328,12 +292,9 @@ class Inspector
 
             // Ensure that the correct data type is being used
             if ($validate && $this->typeValidation && $argType = $arg->get('type')) {
-                $constraint = $this->getConstraint($argType);
-                $result = $this->getValidator()->validateValue($configValue, $constraint);
-                if (!empty($result)) {
-                    $errors = array_merge($errors, array_map(function($message) {
-                        return $message->getMessage();
-                    }, $result->getIterator()->getArrayCopy()));
+                $validation = $this->validateConstraint($argType, $configValue);
+                if ($validation !== true) {
+                    $errors[] = $validation;
                 }
             }
 
@@ -370,29 +331,51 @@ class Inspector
     }
 
     /**
-     * Get a constraint by name: e.g. "type:Guzzle\Common\Collection"
+     * Get a constraint by name
      *
-     * @param string $name Name of the constraint to retrieve
+     * @param string $name Constraint name
      *
-     * @return Constraint
+     * @return ConstraintInterface
+     * @throws InvalidArgumentException if the constraint is not registered
      */
     public function getConstraint($name)
     {
-        $parts = array_map('trim', explode(':', $name, 2));
-        $name = $parts[0];
-
         if (!isset($this->constraints[$name])) {
             throw new InvalidArgumentException($name . ' has not been registered');
         }
 
-        if (!empty($parts[1])) {
-            $args = strpos($parts[1], ',') ? str_getcsv($parts[1], ',', "'") : $parts[1];
-        } else {
-            $args = $this->constraints[$name][1];
+        if (!isset($this->constraintCache[$name])) {
+            $c = $this->constraints[$name][0];
+            $this->constraintCache[$name] = new $c();
         }
 
-        $class = $this->constraints[$name][0];
+        return $this->constraintCache[$name];
+    }
 
-        return new $class($args);
+    /**
+     * Validate a constraint by name: e.g. "type:Guzzle\Common\Collection";
+     * type:string; choice:a,b,c; choice:'a','b','c'; etc...
+     *
+     * @param string $name Constraint to retrieve with optional CSV args after colon
+     * @param mixed $value Value to validate
+     *
+     * @return bool|string Returns TRUE if valid, or an error message if invalid
+     */
+    public function validateConstraint($name, $value)
+    {
+        $parts = explode(':', $name, 2);
+        $name = $parts[0];
+
+        $constraint = $this->getConstraint($name);
+
+        if (empty($parts[1])) {
+            $args = $this->constraints[$name][1];
+        } elseif (strpos($parts[1], ',')) {
+            $args = str_getcsv($parts[1], ',', "'");
+        } else {
+            $args = array($parts[1]);
+        }
+
+        return $constraint->validate($value, $args);
     }
 }
