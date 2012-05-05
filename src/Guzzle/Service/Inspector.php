@@ -247,18 +247,20 @@ class Inspector
      * @param string $className Name of the class to use to retrieve args
      * @param Collection $config Configuration settings
      * @param bool $strict (optional) Set to FALSE to allow missing required fields
+     * @param bool $validate (optional) Set to TRUE or FALSE to validate data.
+     *     Set to false when you only need to add default values and statics.
      *
      * @return array|bool Returns an array of errors or TRUE on success
      * @throws InvalidArgumentException if any args are missing and $strict is TRUE
      */
-    public function validateClass($className, Collection $config, $strict = true)
+    public function validateClass($className, Collection $config, $strict = true, $validate = true)
     {
         if (!isset($this->cache[$className])) {
             $reflection = new \ReflectionClass($className);
             $this->cache[$className] = $this->parseDocBlock($reflection->getDocComment());
         }
 
-        return $this->validateConfig($this->cache[$className], $config, $strict);
+        return $this->validateConfig($this->cache[$className], $config, $strict, $validate);
     }
 
     /**
@@ -270,18 +272,20 @@ class Inspector
      * @param array $params Params to validate
      * @param Collection $config Configuration settings
      * @param bool $strict (optional) Set to FALSE to allow missing required fields
+     * @param bool $validate (optional) Set to TRUE or FALSE to validate data.
+     *     Set to false when you only need to add default values and statics.
      *
      * @return array|bool Returns an array of errors or TRUE on success
      *
      * @throws InvalidArgumentException if any args are missing and $strict is TRUE
      */
-    public function validateConfig(array $params, Collection $config, $strict = true)
+    public function validateConfig(array $params, Collection $config, $strict = true, $validate = true)
     {
         $errors = array();
 
         foreach ($params as $name => $arg) {
 
-            if (is_array($arg)) {
+            if (!($arg instanceof Collection)) {
                 $arg = new Collection($arg);
             }
 
@@ -312,7 +316,7 @@ class Inspector
             }
 
             // Ensure that required arguments are set
-            if ($arg->get('required') && !$configValue) {
+            if ($validate && $arg->get('required') && !$configValue) {
                 $errors[] = 'Requires that the ' . $name . ' argument be supplied.' . ($arg->get('doc') ? '  (' . $arg->get('doc') . ').' : '');
                 continue;
             }
@@ -323,8 +327,7 @@ class Inspector
             }
 
             // Ensure that the correct data type is being used
-            $argType = $arg->get('type');
-            if ($this->typeValidation && $argType) {
+            if ($validate && $this->typeValidation && $argType = $arg->get('type')) {
                 $constraint = $this->getConstraint($argType);
                 $result = $this->getValidator()->validateValue($configValue, $constraint);
                 if (!empty($result)) {
@@ -343,15 +346,17 @@ class Inspector
                 $configValue = $config->get($name);
             }
 
-            // Check the length values
-            $argMinLength = $arg->get('min_length');
-            if ($argMinLength && strlen($configValue) < $argMinLength) {
-                $errors[] = 'Requires that the ' . $name . ' argument be >= ' . $arg->get('min_length') . ' characters.';
-            }
+            // Check the length values if validating data
+            if ($validate) {
+                $argMinLength = $arg->get('min_length');
+                if ($argMinLength && strlen($configValue) < $argMinLength) {
+                    $errors[] = 'Requires that the ' . $name . ' argument be >= ' . $arg->get('min_length') . ' characters.';
+                }
 
-            $argMaxLength = $arg->get('max_length');
-            if ($argMaxLength && strlen($configValue) > $argMaxLength) {
-                $errors[] = 'Requires that the ' . $name . ' argument be <= ' . $arg->get('max_length') . ' characters.';
+                $argMaxLength = $arg->get('max_length');
+                if ($argMaxLength && strlen($configValue) > $argMaxLength) {
+                    $errors[] = 'Requires that the ' . $name . ' argument be <= ' . $arg->get('max_length') . ' characters.';
+                }
             }
         }
 

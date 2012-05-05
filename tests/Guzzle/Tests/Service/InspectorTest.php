@@ -351,9 +351,18 @@ EOT;
                 'type' => 'string'
             )
         ), new Collection(array(
-            'data' => true
-        )), false);
+            'data' => new \stdClass()
+        )), true);
 
         $i->setTypeValidation(true);
+
+        // Ensure that nothing is validated
+        $i->validateConfig(array(
+            'data' => array(
+                'type' => 'string'
+            )
+        ), new Collection(array(
+            'data' => new \stdClass()
+        )), true, false);
     }
 }
