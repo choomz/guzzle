@@ -37,6 +37,11 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
     protected $requests = array();
 
     /**
+     * @var array Cache of all requests currently in any scope
+     */
+    protected $requestCache;
+
+    /**
      * @var string The current state of the pool
      */
     protected $state = self::STATE_IDLE;
@@ -128,6 +133,7 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
      */
     public function __destruct()
     {
+        $this->requestCache = null;
         if (is_resource($this->multiHandle)) {
             curl_multi_close($this->multiHandle);
         }
@@ -143,6 +149,7 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
      */
     public function add(RequestInterface $request, $async = false)
     {
+        $this->requestCache = null;
         $scope = $async ? $this->scope : $this->scope + 1;
         if (!isset($this->requests[$scope])) {
             $this->requests[$scope] = array();
@@ -164,14 +171,16 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
      */
     public function all()
     {
-        $requests = array();
-        foreach ($this->requests as &$scopedRequests) {
-            foreach ($scopedRequests as $request) {
-                $requests[] = $request;
+        if (!$this->requestCache) {
+            $this->requestCache = array();
+            foreach ($this->requests as &$scopedRequests) {
+                foreach ($scopedRequests as $request) {
+                    $this->requestCache[] = $request;
+                }
             }
         }
 
-        return $requests;
+        return $this->requestCache;
     }
 
     /**
@@ -207,6 +216,7 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
             }
         }
 
+        $this->requestCache = null;
         foreach ($this->requests as $scope => $scopedRequests) {
             foreach ($scopedRequests as $i => $scopedRequest) {
                 if ($scopedRequest === $request) {
@@ -236,6 +246,7 @@ class CurlMulti extends AbstractHasDispatcher implements CurlMultiInterface
         $this->requests = $this->exceptions = array();
         $this->state = self::STATE_IDLE;
         $this->scope = -1;
+        $this->requestCache = null;
 
         if ($hard) {
             $this->createMutliHandle();
