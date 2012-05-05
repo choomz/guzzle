@@ -335,4 +335,25 @@ EOT;
         $this->assertEquals('test', $data->get('username'));
         $this->assertEquals('FOO', $data->get('test_function'));
     }
+
+    /**
+     * @covers Guzzle\Service\Inspector::setTypeValidation
+     * @covers Guzzle\Service\Inspector::validateConfig
+     */
+    public function testTypeValidationCanBeDisabled()
+    {
+        $i = Inspector::getInstance();
+        $i->setTypeValidation(false);
+
+        // Ensure that the type is not validated
+        $i->validateConfig(array(
+            'data' => array(
+                'type' => 'string'
+            )
+        ), new Collection(array(
+            'data' => true
+        )), false);
+
+        $i->setTypeValidation(true);
+    }
 }

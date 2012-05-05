@@ -36,6 +36,7 @@ class UriTemplateTest extends \Guzzle\Tests\GuzzleTestCase
             $t[] = $params;
             return $t;
         }, array(
+            array('foo',                 'foo'),
             array('{var}',               'value'),
             array('{hello}',             'Hello%20World%21'),
             array('{+var}',              'value'),

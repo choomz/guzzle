@@ -81,9 +81,11 @@ class ExponentialBackoffPlugin implements EventSubscriberInterface
             $this->delayClosure = $delayFunction;
         }
 
+        // @codeCoverageIgnoreStart
         if (!self::$defaultFailureCodesHash) {
             self::$defaultFailureCodesHash = array_fill_keys(self::$defaultFailureCodes, 1);
         }
+        // @codeCoverageIgnoreEnd
     }
 
     /**

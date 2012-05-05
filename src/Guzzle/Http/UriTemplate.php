@@ -14,14 +14,12 @@ class UriTemplate
     private static $regex = '/\{{1,2}([^\}]+)\}{1,2}/';
 
     /**
-     * @var array Operators
-     */
-    private static $operators = array('+', '#', '.', '/', ';', '?', '&');
-
-    /**
      * @var array Hash for quick operator lookups
      */
-    private static $operatorHash;
+    private static $operatorHash = array(
+        '+' => true, '#' => true, '.' => true, '/' => true, ';' => true,
+        '?' => true, '&' => true
+    );
 
     /**
      * @var array Delimiters
@@ -39,11 +37,6 @@ class UriTemplate
     public function __construct($template = '')
     {
         $this->template = $template;
-
-        // Ensure that the operator hash is created for quick lookups
-        if (!self::$operatorHash) {
-            self::$operatorHash = array_fill_keys(self::$operators, 1);
-        }
     }
 
     /**

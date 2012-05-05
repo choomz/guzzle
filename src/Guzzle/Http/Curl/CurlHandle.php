@@ -35,8 +35,8 @@ class CurlHandle
      *
      * There are some helpful options you can set to enable specific behavior:
      *    - disabled_wire: This is a performance improvement that will disable
-     *         some debugging functionality with cURL.  The functionality 
-     *         it disabled allows you to see the exact HTTP request sent over 
+     *         some debugging functionality with cURL.  The functionality
+     *         it disabled allows you to see the exact HTTP request sent over
      *         the wire.
      *    - progress: Set to true to enable progress function callbacks. Most
      *         People don't need this, so it has been disabled by default.
