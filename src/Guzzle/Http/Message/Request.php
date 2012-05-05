@@ -251,23 +251,21 @@ class Request extends AbstractMessage implements RequestInterface
      */
     public function setUrl($url)
     {
-        if (is_string($url)) {
-            $this->url = Url::factory($url);
-        } else if ($url instanceof Url) {
+        if ($url instanceof Url) {
             $this->url = $url;
         } else {
-            throw new InvalidArgumentException('Invalid URL sent to ' . __METHOD__);
+            $this->url = Url::factory($url);
         }
 
-        $this->setHost($this->url->getHost());
+        // Update the port and host header
         $this->setPort($this->url->getPort());
-        if ($this->url->getUsername() && $this->url->getPassword()) {
-            $this->setAuth($this->url->getUsername(), $this->url->getPassword());
-        }
 
-        // Remove the auth info from the URL
-        $this->url->setUsername(null);
-        $this->url->setPassword(null);
+        if ($this->url->getUsername() || $this->url->getPassword()) {
+            $this->setAuth($this->url->getUsername(), $this->url->getPassword());
+            // Remove the auth info from the URL
+            $this->url->setUsername(null);
+            $this->url->setPassword(null);
+        }
 
         return $this;
     }
@@ -443,7 +441,8 @@ class Request extends AbstractMessage implements RequestInterface
 
         // Include the port in the Host header if it is not the default port
         // for the scheme of the URL
-        if (($this->url->getScheme() == 'http' && $port != 80) || ($this->url->getScheme() == 'https' && $port != 443)) {
+        $scheme = $this->url->getScheme();
+        if (($scheme == 'http' && $port != 80) || ($scheme == 'https' && $port != 443)) {
             $this->headers['host'] = new Header('Host', $this->url->getHost() . ':' . $port);
         } else {
             $this->headers['host'] = new Header('Host', $this->url->getHost());
@@ -804,19 +803,16 @@ class Request extends AbstractMessage implements RequestInterface
     {
         parent::changedHeader($action, $header);
 
-        switch ($header) {
-            case 'host':
-                // If the Host header was changed, be sure to update the internal URL
-                $this->setHost((string) $this->getHeader('Host'));
-                break;
-            case 'cookie':
-                // Be sure to get an cookie updates and update the internal Cookie
-                if ($action == 'set') {
-                    $this->cookie = Cookie::factory($this->getHeader('Cookie'));
-                } else if ($this->cookie) {
-                    $this->cookie->clear();
-                }
-                break;
+        if ($header === 'host') {
+            // If the Host header was changed, be sure to update the internal URL
+            $this->setHost((string) $this->getHeader('Host'));
+        } elseif ($header === 'cookie') {
+            // Be sure to get an cookie updates and update the internal Cookie
+            if ($action === 'set') {
+                $this->cookie = Cookie::factory($this->getHeader('Cookie'));
+            } else if ($this->cookie) {
+                $this->cookie->clear();
+            }
         }
     }
 
