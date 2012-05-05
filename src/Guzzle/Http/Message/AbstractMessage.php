@@ -101,34 +101,18 @@ abstract class AbstractMessage implements MessageInterface
     }
 
     /**
-     * Get all or all matching headers.
+     * Get all headers as a collection
      *
-     * @param array $names (optional) Pass an array of header names to retrieve
-     *     only a particular subset of headers.
-     *
-     * @return Collection Returns a {@see Collection} of all headers if no
-     *      $headers array is specified, or a Collection of only the headers
-     *      matching the headers in the $headers array.
+     * @return Collection Returns a {@see Collection} of all headers
      */
-    public function getHeaders(array $names = null)
+    public function getHeaders()
     {
         $result = array();
 
-        if (!$names) {
-            // Convert all of the headers into a collection
-            foreach ($this->headers as $header) {
-                foreach ($header->raw() as $key => $value) {
-                    $result[$key] = $value;
-                }
-            }
-        } else {
-            // Get a collection of select headers
-            foreach ($names as $name) {
-                if ($this->hasHeader($name)) {
-                    foreach ($this->getHeader($name)->raw() as $key => $value) {
-                        $result[$key] = $value;
-                    }
-                }
+        // Convert all of the headers into a collection
+        foreach ($this->headers as $header) {
+            foreach ($header->raw() as $key => $value) {
+                $result[$key] = $value;
             }
         }
 
